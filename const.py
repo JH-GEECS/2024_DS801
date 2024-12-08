@@ -1,28 +1,35 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import torch
+from typing import Dict
 
-# Dataset const
 SPLIT = ["train", "val", "test"]
-
-SNP_INDICES_ASSETS = {
-    "SPLRCT": "S&P 500 Information Technology",  # done
-    "SPLRCL": "S&P 500 Telecom Services",  # done
-    "SPLRCM": "S&P 500 Materials",  # done
-    "SPLRCREC": "S&P 500 Real Estate",  # 20020101부터 사용가능  # done
-    "SPLRCS": "S&P 500 Consumer Staples",  # done
-    "SPSY": "S&P 500 Financials",  # done
-    "SPNY": "S&P 500 Energy",  # done
-    "SPXHC": "S&P 500 Health Care",  # done, # 중간에 정보 손실 interpolation 해버리기
-    "SPLRCD": "S&P 500 Consumer Discretionary",  # done
-    "SPLRCI": "S&P 500 Industrials",  # done
-    "SPLRCU": "S&P 500 Utilities",  # done
-}
-
-LOOKBACK_T = 60  # follows the Sood et al. (2023)
-SHARPE_ETA = 1 / 252  # daily sharpe ratio
-
 ### computation const
+
 epsilon = 1e-8
+
+# Data const
+@dataclass
+class AssetConst:
+    # Dataset const
+    SPLIT = ["train", "val", "test"]
+
+    SNP_INDICES_ASSETS: Dict = field(default_factory=lambda:{
+        "SPLRCT": "S&P 500 Information Technology",  # done
+        "SPLRCL": "S&P 500 Telecom Services",  # done
+        "SPLRCM": "S&P 500 Materials",  # done
+        "SPLRCREC": "S&P 500 Real Estate",  # 20020101부터 사용가능  # done
+        "SPLRCS": "S&P 500 Consumer Staples",  # done
+        "SPSY": "S&P 500 Financials",  # done
+        "SPNY": "S&P 500 Energy",  # done
+        "SPXHC": "S&P 500 Health Care",  # done, # 중간에 정보 손실 interpolation 해버리기
+        "SPLRCD": "S&P 500 Consumer Discretionary",  # done
+        "SPLRCI": "S&P 500 Industrials",  # done
+        "SPLRCU": "S&P 500 Utilities",  # done
+    })
+
+    LOOKBACK_T = 60  # follows the Sood et al. (2023)
+    SHARPE_ETA = 1 / 252  # daily sharpe ratio
+    initial_cash = 10 ** 5 
 
 # PPO envs
 @dataclass
@@ -37,10 +44,9 @@ class PPOEnvConst:
     CLIP_RANGE = 0.25
     LEARNING_RATE_START = 3e-4
     LEARNING_RATE_END = 1e-5
+    PPOArch: Dict = field(default_factory=lambda: {
+    "net_arch": [64, 64],
+    "activation_fn": torch.nn.Tanh,
+    "log_std_init": -1.0
+    })
     
-@dataclass
-class PPOArch:
-    net_arch = [64, 64]
-    act_fn = torch.nn.Tanh
-    log_std_init = -1.0
-3

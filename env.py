@@ -11,6 +11,7 @@ import torch
 
 import const
 
+
 # gym.Env를 상속해서 새로운 환경을 만들어야 한다.
 class MarketEnv(gym.Env):
     """
@@ -27,10 +28,15 @@ class MarketEnv(gym.Env):
                  sharpe_eta: float,
                  asset_definition: Dict[str, str],
                  market_df: pd.DataFrame,
+                 initial_cash: float,
+                 deterministic: bool = False,
                  debug: bool = False
                  ):
         
         self.debug = debug
+        self.deterministic = deterministic
+        
+        self.initial_cash = initial_cash
         
         # some definiitions of assets
         self.market_df: pd.DataFrame = market_df
@@ -72,7 +78,7 @@ class MarketEnv(gym.Env):
         self.action_space = gym.spaces.Box(
             low=0,
             high=1,
-            shape=(self.num_securities,),
+            shape=(self.num_all_asset,),
             dtype=np.float32
         )
         # n개의 자산에 대해서 예측을 하되, cash의 경우에는 1 - \sum_ i w_i로 계산
@@ -111,15 +117,31 @@ class MarketEnv(gym.Env):
         
         
     
-    def reset(self, initial_cash: float, seed: Optional[int] = None, options: Optional[dict] = None):
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         """
         여기서 overall obersevation를 잘 정의 해주도록 한다.
         """
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
         
+        initial_cash = self.initial_cash
+        
+        # 환경 0으로 초기화
+        self.overall_state = np.zeros(
+            (self.business_days, self.num_all_asset, self.lookback_T)
+        )
+        self.portfolio_ac = np.zeros((self.business_days, 2))
+        self.portfolio_shares = np.zeros((self.business_days, self.num_securities))
+        self.portfolio_return = np.zeros((self.business_days, 1))
+        
         # 처음 거래 시작일, portfolio의 처음은 당연하게도 현금만 운용 가능
-        self.business_start_idx = self.time_step = self.lookback_T - 1
+        # 여기에서 randomness를 넣어도 될 듯 하다
+        # 언제부터 시작할 지, seed에 의해서 random하게 결정
+        if not self.deterministic:
+            start = np.random.randint(self.lookback_T - 1, self.business_days - 1)
+        else:
+            start = self.lookback_T - 1
+        self.business_start_idx = self.time_step = start
         
         # RL environment 초기화
         asset_columns = self._get_asset_columns("log_r")
@@ -131,11 +153,11 @@ class MarketEnv(gym.Env):
             # 현금과 변동성 정보
             self.overall_state[t, -1][1:3] = self.market_df[["SPX_vol20_normalized", "SPX_vol20_div_vol60_normalized"]][t-1:t].to_numpy()
             self.overall_state[t, -1][3:] = self.market_df[["VIX_close_normalized"]][t-(self.lookback_T-3):t][::-1].to_numpy().T
-        self.overall_state[:self.lookback_T, -1, 0] = 1.0  # cash
+        self.overall_state[:(self.business_start_idx + 1), -1, 0] = 1.0  # cash
 
         # portfolio 초기화
         # T-1부터 거래를 시작해야함, 실제로는 T일에 해당하는 거래 data를 활용해야 함
-        self.portfolio_ac[:self.lookback_T, 1] = initial_cash
+        self.portfolio_ac[:(self.business_start_idx + 1), 1] = initial_cash
         
         ### example
         # Choose the agent's location uniformly at random
@@ -155,9 +177,8 @@ class MarketEnv(gym.Env):
 
     def _get_obs(self):
         # return {"agent": self._agent_location, "target": self._target_location}
-        return {
-            "state_t": self.overall_state[self.time_step],
-        }
+        return self.overall_state[self.time_step]
+           
         # agent는 특정 시점일때의 정보에만 접근가능 하도록 하기
         
     
@@ -214,7 +235,18 @@ class MarketEnv(gym.Env):
         else:
             diff_sharpe_ratio = ((B_t1 * delta_A_t - (1/2)*A_t1*delta_B_t)/(B_t1 - A_t1**2)**(3/2))
         
-        return diff_sharpe_ratio
+        return np.squeeze(diff_sharpe_ratio)
+
+    @classmethod
+    def softmax(cls, x):
+        e_x = np.exp(x - np.max(x))
+        return e_x / e_x.sum(axis=0)
+    
+    def _process_action(self, action):
+        """
+        model의 raw 출력을 softmax를 취해주고, 자산에 대한 비율만 넘겨주기
+        """
+        return self.softmax(action)[:self.num_securities]
         
     def step(self, action):
         """
@@ -228,7 +260,8 @@ class MarketEnv(gym.Env):
         """
         self.time_step += 1
         
-        self._compute_clip(action)  # 자산 가치 계산
+        # 여기서 model의 raw actio을 processing을 해주어야 겠다.
+        self._compute_clip(self._process_action(action))  # 자산 가치 계산
         
         reward = self._compute_reward()
         observation = self._get_obs()
