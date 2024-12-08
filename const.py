@@ -1,4 +1,4 @@
-snp_indices_assets = {
+SNP_INDICES_ASSETS = {
     "SPLRCT": "S&P 500 Information Technology",  # done
     "SPLRCL": "S&P 500 Telecom Services",  # done
     "SPLRCM": "S&P 500 Materials",  # done
@@ -11,3 +11,6 @@ snp_indices_assets = {
     "SPLRCI": "S&P 500 Industrials",  # done
     "SPLRCU": "S&P 500 Utilities",  # done
 }
+
+LOOKBACK_T = 60  # follows the Sood et al. (2023)
+
