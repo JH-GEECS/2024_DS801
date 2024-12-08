@@ -14,3 +14,7 @@ SNP_INDICES_ASSETS = {
 
 LOOKBACK_T = 60  # follows the Sood et al. (2023)
 
+SHARPE_ETA = 1 / 252  # daily sharpe ratio
+
+### computation const
+epsilon = 1e-8
