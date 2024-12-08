@@ -230,7 +230,7 @@ class MarketEnv(gym.Env):
         B_t = B_t1 + self.share_eta * delta_B_t
 
         # import ipdb; ipdb.set_trace()
-        if abs(B_t1 - A_t1**2) == const.epsilon: 
+        if abs(B_t1 - A_t1**2) < const.epsilon: 
             diff_sharpe_ratio = 0.0
         else:
             diff_sharpe_ratio = ((B_t1 * delta_A_t - (1/2)*A_t1*delta_B_t)/(B_t1 - A_t1**2)**(3/2))
